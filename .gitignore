@@ -26,7 +26,7 @@ frontend/dist/
 Thumbs.db
 .vscode/
 .idea/
-
+.claude
 # Vault data (DO NOT commit your actual vault!)
 .vaultzero/
 vault.dat
