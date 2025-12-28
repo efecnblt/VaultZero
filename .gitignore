@@ -1,0 +1,52 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Wails build directory
+build/
+
+# Frontend dependencies
+frontend/node_modules/
+frontend/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vault data (DO NOT commit your actual vault!)
+.vaultzero/
+vault.dat
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# NPM
+package-lock.json
+frontend/package-lock.json
+
+# Auto-generated Wails files (keep stub files for initial build)
+# frontend/src/wailsjs/
+wailsbindings/
