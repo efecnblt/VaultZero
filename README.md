@@ -283,19 +283,8 @@ VaultZero is designed for local password storage only. While we use industry-sta
 - Keep your master password secure and unique
 - Never share your master password
 
-## Roadmap
-
-Potential future features:
-- [ ] Password strength indicator
-- [ ] Password generator
-- [ ] Import from other password managers
-- [ ] Export vault (encrypted)
-- [ ] Biometric unlock (fingerprint/Face ID)
-- [ ] Browser extension integration
-- [ ] Custom favicon upload
-- [ ] Tags and favorites
-- [ ] Vault backup reminder
 
 ---
 
 **Built with** by a developer who values privacy and simplicity.
+
