@@ -132,6 +132,46 @@ func (a *App) IsUnlocked() bool {
 	return a.isUnlocked
 }
 
+// ChangeMasterPassword changes the master password and re-encrypts the vault
+func (a *App) ChangeMasterPassword(currentPassword, newPassword string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	// Verify current password
+	if !VerifyPassword(currentPassword, a.passwordHash) {
+		return errors.New("current password is incorrect")
+	}
+
+	// Validate new password
+	if len(newPassword) < 8 {
+		return errors.New("new password must be at least 8 characters")
+	}
+
+	// Generate new salt
+	newSalt, err := GenerateSalt()
+	if err != nil {
+		return errors.New("failed to generate new salt")
+	}
+
+	// Derive new master key
+	newMasterKey := DeriveKey(newPassword, newSalt)
+
+	// Update vault salt
+	a.vault.Salt = newSalt
+
+	// Save vault with new key
+	if err := a.storage.SaveVault(a.vault, newMasterKey); err != nil {
+		return errors.New("failed to save vault with new password")
+	}
+
+	// Update in-memory references
+	a.masterKey = newMasterKey
+	a.passwordHash = HashPassword(newPassword)
+
+	return nil
+}
+
 // GetAllCredentials returns all credentials from the vault
 func (a *App) GetAllCredentials() ([]Credential, error) {
 	if !a.isUnlocked {
@@ -209,6 +249,26 @@ func (a *App) DeleteCredential(id string) error {
 	return errors.New("credential not found")
 }
 
+// ToggleFavorite toggles the favorite status of a credential
+func (a *App) ToggleFavorite(id string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for i, cred := range a.vault.Credentials {
+		if cred.ID == id {
+			a.vault.Credentials[i].IsFavorite = !a.vault.Credentials[i].IsFavorite
+			if err := a.storage.SaveVault(a.vault, a.masterKey); err != nil {
+				return err
+			}
+			runtime.EventsEmit(a.ctx, "credentials-updated")
+			return nil
+		}
+	}
+
+	return errors.New("credential not found")
+}
+
 // CopyPassword copies a password to clipboard with auto-clear
 func (a *App) CopyPassword(id string) error {
 	if !a.isUnlocked {
@@ -266,4 +326,123 @@ func (a *App) DeleteVault() error {
 
 	// Delete vault files
 	return a.storage.DeleteVault()
+}
+
+// ExportToCSV exports all credentials to a CSV file
+func (a *App) ExportToCSV() (string, error) {
+	if !a.isUnlocked {
+		return "", errors.New("vault is locked")
+	}
+
+	// Let user choose where to save
+	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: "vaultzero-export.csv",
+		Title:           "Export Credentials to CSV",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"},
+		},
+	})
+
+	if err != nil || filePath == "" {
+		return "", errors.New("export cancelled")
+	}
+
+	// Export to CSV
+	err = ExportCredentialsToCSV(a.vault.Credentials, filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
+}
+
+// ExportEncryptedBackup creates an encrypted backup of the entire vault
+func (a *App) ExportEncryptedBackup() (string, error) {
+	if !a.isUnlocked {
+		return "", errors.New("vault is locked")
+	}
+
+	// Let user choose where to save
+	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: "vaultzero-backup.vault",
+		Title:           "Export Encrypted Backup",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Vault Backup (*.vault)", Pattern: "*.vault"},
+		},
+	})
+
+	if err != nil || filePath == "" {
+		return "", errors.New("export cancelled")
+	}
+
+	// Create encrypted backup
+	err = a.storage.ExportEncryptedBackup(a.vault, a.masterKey, filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
+}
+
+// ImportEncryptedBackup imports credentials from an encrypted backup file
+func (a *App) ImportEncryptedBackup() (*ImportResult, error) {
+	if !a.isUnlocked {
+		return nil, errors.New("vault is locked")
+	}
+
+	// Let user choose backup file
+	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Import Encrypted Backup",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Vault Backup (*.vault)", Pattern: "*.vault"},
+		},
+	})
+
+	if err != nil || filePath == "" {
+		return nil, errors.New("import cancelled")
+	}
+
+	// Load and decrypt backup
+	credentials, err := a.storage.ImportEncryptedBackup(filePath, a.masterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Import credentials
+	result := &ImportResult{
+		TotalProcessed: len(credentials),
+		Errors:         []string{},
+	}
+
+	for _, cred := range credentials {
+		// Check if credential already exists (by URL + username)
+		exists := false
+		for _, existingCred := range a.vault.Credentials {
+			if existingCred.URL == cred.URL && existingCred.Username == cred.Username {
+				exists = true
+				break
+			}
+		}
+
+		if exists {
+			result.Skipped++
+			continue
+		}
+
+		// Add to vault
+		a.vault.Credentials = append(a.vault.Credentials, cred)
+		result.Imported++
+	}
+
+	// Save vault if any credentials were imported
+	if result.Imported > 0 {
+		if err := a.storage.SaveVault(a.vault, a.masterKey); err != nil {
+			return nil, err
+		}
+
+		// Emit event to notify frontend
+		runtime.EventsEmit(a.ctx, "credentials-updated")
+	}
+
+	return result, nil
 }

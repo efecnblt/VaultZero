@@ -6,6 +6,10 @@ export function AddCredential(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['AddCredential'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function ChangeMasterPassword(arg1, arg2) {
+  return window['go']['main']['App']['ChangeMasterPassword'](arg1, arg2);
+}
+
 export function CheckVaultExists() {
   return window['go']['main']['App']['CheckVaultExists']();
 }
@@ -30,6 +34,14 @@ export function DeleteVault() {
   return window['go']['main']['App']['DeleteVault']();
 }
 
+export function ExportEncryptedBackup() {
+  return window['go']['main']['App']['ExportEncryptedBackup']();
+}
+
+export function ExportToCSV() {
+  return window['go']['main']['App']['ExportToCSV']();
+}
+
 export function GeneratePasswordWithOptions(arg1) {
   return window['go']['main']['App']['GeneratePasswordWithOptions'](arg1);
 }
@@ -42,6 +54,10 @@ export function GetAllCredentials() {
   return window['go']['main']['App']['GetAllCredentials']();
 }
 
+export function ImportEncryptedBackup() {
+  return window['go']['main']['App']['ImportEncryptedBackup']();
+}
+
 export function ImportFromCSV(arg1) {
   return window['go']['main']['App']['ImportFromCSV'](arg1);
 }
@@ -52,6 +68,10 @@ export function IsUnlocked() {
 
 export function LockVault() {
   return window['go']['main']['App']['LockVault']();
+}
+
+export function ToggleFavorite(arg1) {
+  return window['go']['main']['App']['ToggleFavorite'](arg1);
 }
 
 export function UnlockVault(arg1) {

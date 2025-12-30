@@ -8,6 +8,7 @@ export namespace main {
 	    password: string;
 	    category: string;
 	    iconURL: string;
+	    isFavorite: boolean;
 	    // Go type: time
 	    createdAt: any;
 	
@@ -24,6 +25,7 @@ export namespace main {
 	        this.password = source["password"];
 	        this.category = source["category"];
 	        this.iconURL = source["iconURL"];
+	        this.isFavorite = source["isFavorite"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
 	

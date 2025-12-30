@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Eye, EyeOff, Key } from 'lucide-react';
+import { X, Save, Eye, EyeOff, Key, AlertTriangle } from 'lucide-react';
 import { Credential, Category } from '../types';
 import * as App from '../wailsjs/go/main/App';
 import PasswordGenerator from './PasswordGenerator';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
+import { checkDuplicatePassword } from '../utils/duplicatePassword';
 
 interface AddModalProps {
   isOpen: boolean;
@@ -23,8 +25,12 @@ const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onSuccess, editCre
   const [showGenerator, setShowGenerator] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [credentials, setCredentials] = useState<Credential[]>([]);
 
   useEffect(() => {
+    if (isOpen) {
+      loadCredentials();
+    }
     if (editCredential) {
       setServiceName(editCredential.serviceName);
       setUrl(editCredential.url);
@@ -35,6 +41,22 @@ const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onSuccess, editCre
       resetForm();
     }
   }, [editCredential, isOpen]);
+
+  const loadCredentials = async () => {
+    try {
+      const creds = await App.GetAllCredentials();
+      setCredentials(creds || []);
+    } catch (error) {
+      console.error('Failed to load credentials:', error);
+    }
+  };
+
+  // Check for duplicate passwords
+  const duplicateInfo = checkDuplicatePassword(
+    password,
+    credentials,
+    editCredential?.id
+  );
 
   const resetForm = () => {
     setServiceName('');
@@ -232,6 +254,40 @@ const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onSuccess, editCre
             ) : (
               <div className="bg-slate-900/30 border border-slate-700 rounded-lg p-4">
                 <PasswordGenerator onPasswordGenerated={handlePasswordGenerated} />
+              </div>
+            )}
+
+            {/* Password Strength Indicator */}
+            {!showGenerator && password && (
+              <div className="mt-3">
+                <PasswordStrengthIndicator
+                  password={password}
+                  showLabel={true}
+                  showBar={true}
+                  showFeedback={true}
+                />
+              </div>
+            )}
+
+            {/* Duplicate Password Warning */}
+            {!showGenerator && duplicateInfo.isDuplicate && (
+              <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 text-sm">
+                  <div className="text-amber-400 font-medium mb-1">
+                    Security Warning: Password Reuse Detected
+                  </div>
+                  <div className="text-amber-200/80">
+                    This password is already used for:{' '}
+                    <span className="font-medium">
+                      {duplicateInfo.services.slice(0, 3).join(', ')}
+                      {duplicateInfo.count > 3 && ` and ${duplicateInfo.count - 3} more`}
+                    </span>
+                  </div>
+                  <div className="text-amber-200/60 text-xs mt-1">
+                    Using the same password for multiple accounts is a security risk. Consider generating a unique password.
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -6,6 +6,7 @@ export interface Credential {
   password: string;
   category: string;
   iconURL: string;
+  isFavorite: boolean;
   createdAt: string;
 }
 

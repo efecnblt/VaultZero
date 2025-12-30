@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddCredential(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
+export function ChangeMasterPassword(arg1:string,arg2:string):Promise<void>;
+
 export function CheckVaultExists():Promise<boolean>;
 
 export function CopyPassword(arg1:string):Promise<void>;
@@ -16,17 +18,25 @@ export function DeleteCredential(arg1:string):Promise<void>;
 
 export function DeleteVault():Promise<void>;
 
+export function ExportEncryptedBackup():Promise<string>;
+
+export function ExportToCSV():Promise<string>;
+
 export function GeneratePasswordWithOptions(arg1:main.PasswordGeneratorOptions):Promise<string>;
 
 export function GenerateQuickPassword(arg1:number):Promise<string>;
 
 export function GetAllCredentials():Promise<Array<main.Credential>>;
 
+export function ImportEncryptedBackup():Promise<main.ImportResult>;
+
 export function ImportFromCSV(arg1:string):Promise<main.ImportResult>;
 
 export function IsUnlocked():Promise<boolean>;
 
 export function LockVault():Promise<void>;
+
+export function ToggleFavorite(arg1:string):Promise<void>;
 
 export function UnlockVault(arg1:string):Promise<void>;
 

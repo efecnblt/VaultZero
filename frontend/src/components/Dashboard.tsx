@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Lock, LogOut, Grid, List, Users, Briefcase, DollarSign, Folder, Download } from 'lucide-react';
+import { Search, Plus, Lock, LogOut, Grid, List, Users, Briefcase, DollarSign, Folder, Download, Upload, Key } from 'lucide-react';
 import { Credential, Category } from '../types';
 import * as App from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import CredentialCard from './CredentialCard';
 import AddModal from './AddModal';
 import ImportModal from './ImportModal';
+import ExportModal from './ExportModal';
+import ChangePasswordModal from './ChangePasswordModal';
+import { useAutoLock } from '../hooks/useAutoLock';
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<Credential[]>([]);
@@ -14,9 +17,20 @@ const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [editCredential, setEditCredential] = useState<Credential | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [loading, setLoading] = useState(true);
+
+  // Auto-lock after 15 minutes of inactivity
+  useAutoLock({
+    enabled: true,
+    timeoutMinutes: 15,
+    onLock: () => {
+      window.location.reload();
+    },
+  });
 
   useEffect(() => {
     loadCredentials();
@@ -61,6 +75,13 @@ const Dashboard: React.FC = () => {
           cred.url.toLowerCase().includes(query)
       );
     }
+
+    // Sort favorites to the top
+    filtered.sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      return 0;
+    });
 
     setFilteredCredentials(filtered);
   };
@@ -169,8 +190,15 @@ const Dashboard: React.FC = () => {
           })}
         </nav>
 
-        {/* Lock Button */}
-        <div className="p-4 border-t border-slate-700">
+        {/* Settings & Lock */}
+        <div className="p-4 border-t border-slate-700 space-y-2">
+          <button
+            onClick={() => setIsChangePasswordModalOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+          >
+            <Key className="w-5 h-5" />
+            <span className="font-medium">Change Password</span>
+          </button>
           <button
             onClick={handleLockVault}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
@@ -234,6 +262,16 @@ const Dashboard: React.FC = () => {
               Import
             </button>
 
+            {/* Export Button */}
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-medium transition-colors"
+              title="Export credentials"
+            >
+              <Upload className="w-5 h-5" />
+              Export
+            </button>
+
             {/* Add Button */}
             <button
               onClick={() => {
@@ -291,6 +329,7 @@ const Dashboard: React.FC = () => {
                 <CredentialCard
                   key={credential.id}
                   credential={credential}
+                  allCredentials={credentials}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                 />
@@ -313,6 +352,22 @@ const Dashboard: React.FC = () => {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={handleModalSuccess}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        onSuccess={() => {
+          // Optional: show a toast notification
+          console.log('Master password changed successfully');
+        }}
       />
     </div>
   );

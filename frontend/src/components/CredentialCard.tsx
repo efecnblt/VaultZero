@@ -1,18 +1,25 @@
 import { useState } from 'react';
-import { Copy, Eye, EyeOff, Trash2, Edit, Check } from 'lucide-react';
+import { Copy, Eye, EyeOff, Trash2, Edit, Check, AlertCircle, Star } from 'lucide-react';
 import { Credential } from '../types';
 import * as App from '../wailsjs/go/main/App';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
+import { countPasswordUsage } from '../utils/duplicatePassword';
 
 interface CredentialCardProps {
   credential: Credential;
+  allCredentials: Credential[];
   onDelete: (id: string) => void;
   onEdit: (credential: Credential) => void;
 }
 
-const CredentialCard: React.FC<CredentialCardProps> = ({ credential, onDelete, onEdit }) => {
+const CredentialCard: React.FC<CredentialCardProps> = ({ credential, allCredentials, onDelete, onEdit }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedUsername, setCopiedUsername] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
+
+  // Count how many times this password is used
+  const passwordUsageCount = countPasswordUsage(credential.password, allCredentials);
+  const isPasswordReused = passwordUsageCount > 1;
 
   const handleCopyUsername = async () => {
     try {
@@ -31,6 +38,15 @@ const CredentialCard: React.FC<CredentialCardProps> = ({ credential, onDelete, o
       setTimeout(() => setCopiedPassword(false), 2000);
     } catch (error) {
       console.error('Failed to copy password:', error);
+    }
+  };
+
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await App.ToggleFavorite(credential.id);
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
     }
   };
 
@@ -91,6 +107,21 @@ const CredentialCard: React.FC<CredentialCardProps> = ({ credential, onDelete, o
         {/* Action buttons - visible on hover */}
         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
+            onClick={handleToggleFavorite}
+            className={`p-2 rounded-lg transition-colors ${
+              credential.isFavorite
+                ? 'bg-amber-500/20 hover:bg-amber-500/30'
+                : 'bg-slate-700 hover:bg-slate-600'
+            }`}
+            title={credential.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star
+              className={`w-4 h-4 ${
+                credential.isFavorite ? 'text-amber-400 fill-amber-400' : 'text-slate-300'
+              }`}
+            />
+          </button>
+          <button
             onClick={() => onEdit(credential)}
             className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
             title="Edit"
@@ -132,7 +163,23 @@ const CredentialCard: React.FC<CredentialCardProps> = ({ credential, onDelete, o
       <div>
         <div className="flex items-center justify-between bg-slate-900/50 rounded-lg px-4 py-3">
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-slate-500 mb-1">Password</div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-slate-500">Password</div>
+                {isPasswordReused && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded text-xs text-amber-400">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>Used in {passwordUsageCount} places</span>
+                  </div>
+                )}
+              </div>
+              <PasswordStrengthIndicator
+                password={credential.password}
+                showLabel={true}
+                showBar={false}
+                showFeedback={false}
+              />
+            </div>
             <div className="text-slate-200 font-mono">
               {showPassword ? credential.password : '••••••••••••'}
             </div>

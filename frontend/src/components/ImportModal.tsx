@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Upload, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, AlertCircle, Download, Shield } from 'lucide-react';
 import * as App from '../wailsjs/go/main/App';
 
 interface ImportModalProps {
@@ -8,7 +8,10 @@ interface ImportModalProps {
   onSuccess: () => void;
 }
 
+type ImportType = 'csv' | 'backup';
+
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const [importType, setImportType] = useState<ImportType>('csv');
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -29,7 +32,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
     }
   };
 
-  const handleImport = async () => {
+  const handleImportCSV = async () => {
     if (!file) {
       setError('Please select a file first');
       return;
@@ -58,10 +61,34 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
     }
   };
 
+  const handleImportBackup = async () => {
+    setImporting(true);
+    setError('');
+
+    try {
+      // Backend opens its own file dialog
+      const importResult = await App.ImportEncryptedBackup();
+
+      setResult(importResult);
+
+      // If successful, refresh the credential list
+      if (importResult.imported > 0) {
+        onSuccess();
+      }
+    } catch (err: any) {
+      if (err.message && err.message !== 'import cancelled') {
+        setError(err.message || 'Failed to import backup');
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleClose = () => {
     setFile(null);
     setResult(null);
     setError('');
+    setImportType('csv');
     onClose();
   };
 
@@ -74,14 +101,16 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
     e.preventDefault();
     e.stopPropagation();
 
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      if (droppedFile.type === 'text/csv' || droppedFile.name.endsWith('.csv')) {
-        setFile(droppedFile);
-        setError('');
-        setResult(null);
-      } else {
-        setError('Please drop a CSV file');
+    if (importType === 'csv') {
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile) {
+        if (droppedFile.type === 'text/csv' || droppedFile.name.endsWith('.csv')) {
+          setFile(droppedFile);
+          setError('');
+          setResult(null);
+        } else {
+          setError('Please drop a CSV file');
+        }
       }
     }
   };
@@ -96,7 +125,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
           <div>
             <h2 className="text-2xl font-bold text-slate-100">Import Passwords</h2>
             <p className="text-sm text-slate-400 mt-1">
-              Import from Chrome, Firefox, Edge, Safari, or any CSV export
+              Import from browser CSV or encrypted backup
             </p>
           </div>
           <button
@@ -109,77 +138,170 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Instructions */}
-          <div className="bg-primary-500/10 border border-primary-500/50 rounded-lg p-4">
-            <h3 className="font-semibold text-primary-400 mb-2 flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              How to Export Passwords from Your Browser
-            </h3>
-            <div className="text-sm text-slate-300 space-y-2">
-              <div>
-                <strong className="text-primary-300">Chrome/Edge:</strong> Settings → Passwords → ⋮ (menu) → Export passwords
-              </div>
-              <div>
-                <strong className="text-primary-300">Firefox:</strong> about:logins → ⋮ (menu) → Export Logins
-              </div>
-              <div>
-                <strong className="text-primary-300">Safari:</strong> File → Export Passwords
-              </div>
-            </div>
-          </div>
-
-          {/* File Upload Area */}
+          {/* Import Type Selection */}
           {!result && (
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                file
-                  ? 'border-primary-500 bg-primary-500/10'
-                  : 'border-slate-600 hover:border-slate-500 bg-slate-900/30'
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-slate-300 mb-3">
+                Choose Import Type
+              </label>
 
-              {file ? (
-                <div className="space-y-3">
-                  <FileText className="w-16 h-16 text-primary-400 mx-auto" />
-                  <div>
-                    <p className="text-slate-200 font-medium">{file.name}</p>
-                    <p className="text-sm text-slate-400 mt-1">
-                      {(file.size / 1024).toFixed(2)} KB
-                    </p>
+              {/* CSV Import Option */}
+              <button
+                onClick={() => {
+                  setImportType('csv');
+                  setFile(null);
+                  setError('');
+                }}
+                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                  importType === 'csv'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-slate-700 bg-slate-900/50 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <FileText className={`w-5 h-5 mt-0.5 ${importType === 'csv' ? 'text-primary-500' : 'text-slate-400'}`} />
+                  <div className="flex-1">
+                    <div className="font-medium text-slate-100 mb-1">
+                      CSV from Browser
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      Import passwords exported from Chrome, Firefox, Edge, or Safari (plain text CSV)
+                    </div>
                   </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-                  >
-                    Choose different file
-                  </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <Upload className="w-16 h-16 text-slate-500 mx-auto" />
-                  <div>
-                    <p className="text-slate-300 font-medium mb-1">
-                      Drop your CSV file here
-                    </p>
-                    <p className="text-sm text-slate-500">or</p>
+              </button>
+
+              {/* Encrypted Backup Option */}
+              <button
+                onClick={() => {
+                  setImportType('backup');
+                  setFile(null);
+                  setError('');
+                }}
+                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                  importType === 'backup'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-slate-700 bg-slate-900/50 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <Shield className={`w-5 h-5 mt-0.5 ${importType === 'backup' ? 'text-primary-500' : 'text-slate-400'}`} />
+                  <div className="flex-1">
+                    <div className="font-medium text-slate-100 mb-1">
+                      Encrypted Backup (Recommended)
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      Import from a VaultZero encrypted backup (.vault file) - fully secure
+                    </div>
                   </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors"
-                  >
-                    Browse Files
-                  </button>
                 </div>
-              )}
+              </button>
+            </div>
+          )}
+
+          {/* CSV Import Instructions */}
+          {importType === 'csv' && !result && (
+            <>
+              <div className="bg-primary-500/10 border border-primary-500/50 rounded-lg p-4">
+                <h3 className="font-semibold text-primary-400 mb-2 flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  How to Export Passwords from Your Browser
+                </h3>
+                <div className="text-sm text-slate-300 space-y-2">
+                  <div>
+                    <strong className="text-primary-300">Chrome/Edge:</strong> Settings → Passwords → ⋮ (menu) → Export passwords
+                  </div>
+                  <div>
+                    <strong className="text-primary-300">Firefox:</strong> about:logins → ⋮ (menu) → Export Logins
+                  </div>
+                  <div>
+                    <strong className="text-primary-300">Safari:</strong> File → Export Passwords
+                  </div>
+                </div>
+              </div>
+
+              {/* File Upload Area */}
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                  file
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-slate-600 hover:border-slate-500 bg-slate-900/30'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                {file ? (
+                  <div className="space-y-3">
+                    <FileText className="w-16 h-16 text-primary-400 mx-auto" />
+                    <div>
+                      <p className="text-slate-200 font-medium">{file.name}</p>
+                      <p className="text-sm text-slate-400 mt-1">
+                        {(file.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                    >
+                      Choose different file
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Upload className="w-16 h-16 text-slate-500 mx-auto" />
+                    <div>
+                      <p className="text-slate-300 font-medium mb-1">
+                        Drop your CSV file here
+                      </p>
+                      <p className="text-sm text-slate-500">or</p>
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Browse Files
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Encrypted Backup Info */}
+          {importType === 'backup' && !result && (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-6 text-center">
+              <Shield className="w-16 h-16 text-green-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-100 mb-2">
+                Import Encrypted Backup
+              </h3>
+              <p className="text-sm text-slate-400 mb-6">
+                Click the button below to select your .vault backup file. Your credentials will be decrypted using your current master password.
+              </p>
+              <button
+                onClick={handleImportBackup}
+                disabled={importing}
+                className="px-8 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Select Backup File
+                  </>
+                )}
+              </button>
             </div>
           )}
 
@@ -251,23 +373,25 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess })
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleImport}
-                  disabled={!file || importing}
-                  className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {importing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      Import Passwords
-                    </>
-                  )}
-                </button>
+                {importType === 'csv' && (
+                  <button
+                    onClick={handleImportCSV}
+                    disabled={!file || importing}
+                    className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {importing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import CSV
+                      </>
+                    )}
+                  </button>
+                )}
               </>
             ) : (
               <button

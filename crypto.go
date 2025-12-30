@@ -88,3 +88,8 @@
         hash := sha256.Sum256([]byte(password))
         return base64.StdEncoding.EncodeToString(hash[:])
   }
+
+  // VerifyPassword verifies a password against a stored hash
+  func VerifyPassword(password, hash string) bool {
+        return HashPassword(password) == hash
+  }

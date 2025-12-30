@@ -141,3 +141,26 @@ func (sm *StorageManager) DeleteVault() error {
 
 	return nil
 }
+
+// ImportEncryptedBackup imports credentials from an encrypted backup file
+func (sm *StorageManager) ImportEncryptedBackup(filePath string, masterKey []byte) ([]Credential, error) {
+	// Read encrypted backup file
+	encrypted, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, errors.New("failed to read backup file")
+	}
+
+	// Decrypt
+	decrypted, err := Decrypt(string(encrypted), masterKey)
+	if err != nil {
+		return nil, errors.New("failed to decrypt backup - wrong password or corrupted file")
+	}
+
+	// Deserialize credentials
+	var credentials []Credential
+	if err := json.Unmarshal(decrypted, &credentials); err != nil {
+		return nil, errors.New("invalid backup file format")
+	}
+
+	return credentials, nil
+}

@@ -13,6 +13,7 @@ type Credential struct {
 	Password    string    `json:"password"`
 	Category    string    `json:"category"`
 	IconURL     string    `json:"iconURL"`
+	IsFavorite  bool      `json:"isFavorite"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
