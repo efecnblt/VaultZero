@@ -127,6 +127,9 @@ func (s *IPCServer) handleRequest(request *IPCRequest) *IPCResponse {
 	case "save":
 		return s.handleSave(request.Data)
 
+	case "getCreditCards":
+		return s.handleGetCreditCards()
+
 	default:
 		return &IPCResponse{
 			Success: false,
@@ -194,6 +197,21 @@ func (s *IPCServer) handleSave(data map[string]interface{}) *IPCResponse {
 	}
 }
 
+// handleGetCreditCards returns all credit cards
+func (s *IPCServer) handleGetCreditCards() *IPCResponse {
+	if !s.app.isUnlocked {
+		return &IPCResponse{
+			Success: false,
+			Error:   "Vault is locked",
+		}
+	}
+
+	return &IPCResponse{
+		Success:     true,
+		CreditCards: s.app.vault.CreditCards,
+	}
+}
+
 // sendResponseToPipe sends an IPC response to a specific pipe
 func (s *IPCServer) sendResponseToPipe(pipe syscall.Handle, response *IPCResponse) {
 	responseBytes, _ := json.Marshal(response)
@@ -223,6 +241,7 @@ type IPCRequest struct {
 type IPCResponse struct {
 	Success     bool         `json:"success"`
 	Credentials []Credential `json:"credentials,omitempty"`
+	CreditCards []CreditCard `json:"creditCards,omitempty"`
 	Error       string       `json:"error,omitempty"`
 }
 

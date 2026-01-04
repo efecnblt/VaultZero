@@ -157,6 +157,23 @@ func handleMessage(msg *Message, logFile *os.File) *Response {
 			Success: true,
 		}
 
+	case "getCreditCards":
+		cards, err := getCreditCardsFromVault(logFile)
+		if err != nil {
+			return &Response{
+				Type:    "creditCards",
+				ID:      msg.ID,
+				Success: false,
+				Error:   err.Error(),
+			}
+		}
+		return &Response{
+			Type:    "creditCards",
+			ID:      msg.ID,
+			Success: true,
+			Data:    map[string]interface{}{"cards": cards},
+		}
+
 	default:
 		return &Response{
 			Type:    "error",
@@ -244,6 +261,43 @@ func saveCredentialToVault(data map[string]interface{}, logFile *os.File) error 
 	}
 
 	return nil
+}
+
+// getCreditCardsFromVault gets all credit cards via named pipe
+func getCreditCardsFromVault(logFile *os.File) ([]interface{}, error) {
+	conn, err := connectToPipe(logFile)
+	if err != nil {
+		return nil, fmt.Errorf("VaultZero is not running: %v", err)
+	}
+	defer conn.Close()
+
+	// Send request
+	request := map[string]interface{}{
+		"action": "getCreditCards",
+	}
+	requestBytes, _ := json.Marshal(request)
+
+	if _, err := conn.Write(append(requestBytes, '\n')); err != nil {
+		return nil, err
+	}
+
+	// Read response
+	response := make([]byte, 65536)
+	n, err := conn.Read(response)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(response[:n], &result); err != nil {
+		return nil, err
+	}
+
+	if cards, ok := result["creditCards"].([]interface{}); ok {
+		return cards, nil
+	}
+
+	return []interface{}{}, nil
 }
 
 // connectToPipe connects to the VaultZero named pipe (Windows)

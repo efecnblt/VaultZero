@@ -69,8 +69,16 @@ func (sm *StorageManager) SaveVault(vault *Vault, masterKey []byte) error {
 		return err
 	}
 
-	// Serialize vault to JSON (including credentials only, not salt)
-	data, err := json.Marshal(vault.Credentials)
+	// Serialize vault to JSON (including credentials and credit cards)
+	vaultData := struct {
+		Credentials []Credential `json:"credentials"`
+		CreditCards []CreditCard `json:"creditCards"`
+	}{
+		Credentials: vault.Credentials,
+		CreditCards: vault.CreditCards,
+	}
+
+	data, err := json.Marshal(vaultData)
 	if err != nil {
 		return err
 	}
@@ -104,14 +112,28 @@ func (sm *StorageManager) LoadVault(masterKey []byte, salt []byte) (*Vault, erro
 		return nil, errors.New("invalid master password or corrupted vault")
 	}
 
-	// Deserialize
-	var credentials []Credential
-	if err := json.Unmarshal(decrypted, &credentials); err != nil {
-		return nil, err
+	// Deserialize - try new format first (with credit cards)
+	var vaultData struct {
+		Credentials []Credential `json:"credentials"`
+		CreditCards []CreditCard `json:"creditCards"`
+	}
+
+	if err := json.Unmarshal(decrypted, &vaultData); err != nil {
+		// Fall back to old format (credentials only) for backward compatibility
+		var credentials []Credential
+		if err := json.Unmarshal(decrypted, &credentials); err != nil {
+			return nil, err
+		}
+		return &Vault{
+			Credentials: credentials,
+			CreditCards: []CreditCard{}, // Empty credit cards for old vaults
+			Salt:        salt,
+		}, nil
 	}
 
 	return &Vault{
-		Credentials: credentials,
+		Credentials: vaultData.Credentials,
+		CreditCards: vaultData.CreditCards,
 		Salt:        salt,
 	}, nil
 }

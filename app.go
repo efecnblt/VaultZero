@@ -87,6 +87,7 @@ func (a *App) CreateVault(masterPassword string) error {
 	// Create empty vault
 	a.vault = &Vault{
 		Credentials: []Credential{},
+		CreditCards: []CreditCard{},
 		Salt:        salt,
 	}
 
@@ -310,6 +311,139 @@ func (a *App) GenerateQuickPassword(length int) (string, error) {
 		length = 16
 	}
 	return GenerateStrongPassword(length)
+}
+
+// ============ Credit Card Methods ============
+
+// GetAllCreditCards returns all credit cards from the vault
+func (a *App) GetAllCreditCards() ([]CreditCard, error) {
+	if !a.isUnlocked {
+		return nil, errors.New("vault is locked")
+	}
+	return a.vault.CreditCards, nil
+}
+
+// AddCreditCard adds a new credit card to the vault
+func (a *App) AddCreditCard(cardName, cardholderName, cardNumber, expiryMonth, expiryYear, cvv, cardType, billingZip string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	card := CreditCard{
+		ID:             uuid.New().String(),
+		CardName:       cardName,
+		CardholderName: cardholderName,
+		CardNumber:     cardNumber,
+		ExpiryMonth:    expiryMonth,
+		ExpiryYear:     expiryYear,
+		CVV:            cvv,
+		CardType:       cardType,
+		BillingZip:     billingZip,
+		CreatedAt:      time.Now(),
+	}
+
+	a.vault.CreditCards = append(a.vault.CreditCards, card)
+
+	// Save vault
+	err := a.storage.SaveVault(a.vault, a.masterKey)
+	if err != nil {
+		return err
+	}
+
+	// Emit event to notify frontend
+	runtime.EventsEmit(a.ctx, "creditcards-updated")
+
+	return nil
+}
+
+// UpdateCreditCard updates an existing credit card
+func (a *App) UpdateCreditCard(id, cardName, cardholderName, cardNumber, expiryMonth, expiryYear, cvv, cardType, billingZip string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for i, card := range a.vault.CreditCards {
+		if card.ID == id {
+			a.vault.CreditCards[i].CardName = cardName
+			a.vault.CreditCards[i].CardholderName = cardholderName
+			a.vault.CreditCards[i].CardNumber = cardNumber
+			a.vault.CreditCards[i].ExpiryMonth = expiryMonth
+			a.vault.CreditCards[i].ExpiryYear = expiryYear
+			a.vault.CreditCards[i].CVV = cvv
+			a.vault.CreditCards[i].CardType = cardType
+			a.vault.CreditCards[i].BillingZip = billingZip
+
+			return a.storage.SaveVault(a.vault, a.masterKey)
+		}
+	}
+
+	return errors.New("credit card not found")
+}
+
+// DeleteCreditCard removes a credit card from the vault
+func (a *App) DeleteCreditCard(id string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for i, card := range a.vault.CreditCards {
+		if card.ID == id {
+			a.vault.CreditCards = append(a.vault.CreditCards[:i], a.vault.CreditCards[i+1:]...)
+			return a.storage.SaveVault(a.vault, a.masterKey)
+		}
+	}
+
+	return errors.New("credit card not found")
+}
+
+// ToggleCreditCardFavorite toggles the favorite status of a credit card
+func (a *App) ToggleCreditCardFavorite(id string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for i, card := range a.vault.CreditCards {
+		if card.ID == id {
+			a.vault.CreditCards[i].IsFavorite = !a.vault.CreditCards[i].IsFavorite
+			if err := a.storage.SaveVault(a.vault, a.masterKey); err != nil {
+				return err
+			}
+			runtime.EventsEmit(a.ctx, "creditcards-updated")
+			return nil
+		}
+	}
+
+	return errors.New("credit card not found")
+}
+
+// CopyCardNumber copies a card number to clipboard with auto-clear
+func (a *App) CopyCardNumber(id string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for _, card := range a.vault.CreditCards {
+		if card.ID == id {
+			return ClipboardCopy(card.CardNumber)
+		}
+	}
+
+	return errors.New("credit card not found")
+}
+
+// CopyCVV copies a CVV to clipboard with auto-clear
+func (a *App) CopyCVV(id string) error {
+	if !a.isUnlocked {
+		return errors.New("vault is locked")
+	}
+
+	for _, card := range a.vault.CreditCards {
+		if card.ID == id {
+			return ClipboardCopy(card.CVV)
+		}
+	}
+
+	return errors.New("credit card not found")
 }
 
 // LockVault locks the vault and clears sensitive data from memory

@@ -12,6 +12,15 @@
     form: null
   };
 
+  let detectedPaymentFields = {
+    cardNumber: null,
+    cardName: null,
+    expiryMonth: null,
+    expiryYear: null,
+    cvv: null,
+    form: null
+  };
+
   let isVaultZeroReady = false;
   let currentUrl = window.location.hostname;
 
@@ -24,6 +33,7 @@
 
     // Detect forms on page load
     detectLoginForms();
+    detectPaymentForms();
 
     // Watch for dynamically added forms (SPAs)
     observeFormChanges();
@@ -526,6 +536,281 @@
       sendResponse({ success: true });
     }
     return false;
+  }
+
+  // ===== CREDIT CARD AUTO-FILL =====
+
+  // Detect payment forms on the page
+  function detectPaymentForms() {
+    // Look for card number fields - more comprehensive selectors
+    const cardNumberFields = document.querySelectorAll(
+      'input[autocomplete*="cc-number"], input[autocomplete*="card"], ' +
+      'input[name*="card"], input[id*="card"], input[name*="cardnumber"], ' +
+      'input[id*="cardnumber"], input[name*="cardNumber"], input[id*="cardNumber"], ' +
+      'input[type="tel"][maxlength="19"], input[type="tel"][maxlength="16"], ' +
+      'input[inputmode="numeric"], input[maxlength="19"], input[maxlength="16"]'
+    );
+
+    cardNumberFields.forEach((cardField) => {
+      if (cardField.dataset.vaultzeroCardListener) {
+        return; // Already processed
+      }
+
+      const form = cardField.closest('form') || document;
+
+      // Detect other payment fields
+      const cardNameField = findPaymentField(form, [
+        'input[autocomplete="cc-name"]',
+        'input[name*="name"]',
+        'input[id*="name"]',
+        'input[name*="cardholder"]',
+        'input[name="cc_owner"]',
+        'input[id="cc_owner"]',
+        'input[name*="owner"]',
+        'input[id*="owner"]'
+      ]);
+
+      const expiryField = findPaymentField(form, [
+        'input[autocomplete="cc-exp"]',
+        'input[name*="expir"]',
+        'input[id*="expir"]',
+        'input[name="expiryDate"]',
+        'input[id="expiryDate"]',
+        'input[placeholder*="MM"]',
+        'input[placeholder*="YY"]'
+      ]);
+
+      const expiryMonthField = findPaymentField(form, [
+        'input[autocomplete="cc-exp-month"]',
+        'select[autocomplete="cc-exp-month"]',
+        'input[name*="month"]',
+        'select[name*="month"]'
+      ]);
+
+      const expiryYearField = findPaymentField(form, [
+        'input[autocomplete="cc-exp-year"]',
+        'select[autocomplete="cc-exp-year"]',
+        'input[name*="year"]',
+        'select[name*="year"]'
+      ]);
+
+      const cvvField = findPaymentField(form, [
+        'input[autocomplete="cc-csc"]',
+        'input[name*="cvv"]',
+        'input[id*="cvv"]',
+        'input[name*="cvc"]',
+        'input[id*="cvc"]',
+        'input[name*="security"]'
+      ]);
+
+      // Store detected fields
+      detectedPaymentFields.cardNumber = cardField;
+      detectedPaymentFields.cardName = cardNameField;
+      detectedPaymentFields.expiryMonth = expiryMonthField || expiryField;
+      detectedPaymentFields.expiryYear = expiryYearField;
+      detectedPaymentFields.cvv = cvvField;
+      detectedPaymentFields.form = form;
+
+      // Add VaultZero icon to card number field
+      addCreditCardIcon(cardField);
+
+      // Add auto-fill listener
+      cardField.dataset.vaultzeroCardListener = 'true';
+      cardField.addEventListener('focus', () => {
+        showCreditCardSelector(cardField);
+      });
+    });
+  }
+
+  // Find payment field by selectors
+  function findPaymentField(container, selectors) {
+    for (const selector of selectors) {
+      const field = container.querySelector(selector);
+      if (field && field.offsetParent !== null) {
+        return field;
+      }
+    }
+    return null;
+  }
+
+  // Add VaultZero credit card icon
+  function addCreditCardIcon(cardField) {
+    if (cardField.dataset.vaultzeroCreditCardIcon) {
+      return;
+    }
+    cardField.dataset.vaultzeroCreditCardIcon = 'true';
+
+    const icon = document.createElement('div');
+    icon.className = 'vaultzero-icon vaultzero-card-icon';
+    icon.innerHTML = `<img src="${VAULTZERO_ICON}" alt="VaultZero" />`;
+    icon.title = 'Auto-fill credit card from VaultZero';
+
+    positionIcon(icon, cardField);
+
+    icon.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showCreditCardSelector(cardField);
+    });
+
+    window.addEventListener('resize', () => positionIcon(icon, cardField));
+  }
+
+  // Show credit card selector
+  function showCreditCardSelector(cardField) {
+    if (!isVaultZeroReady) {
+      showNotification('VaultZero is not running or locked');
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      action: 'getCreditCards'
+    }, (response) => {
+      if (response && response.success && response.data && response.data.cards) {
+        const cards = response.data.cards;
+
+        if (cards.length === 0) {
+          showNotification('No credit cards found in VaultZero');
+        } else if (cards.length === 1) {
+          fillCreditCard(cards[0]);
+        } else {
+          showCreditCardMenu(cards, cardField);
+        }
+      } else {
+        showNotification('VaultZero is locked or not running');
+      }
+    });
+  }
+
+  // Show menu to select credit card
+  function showCreditCardMenu(cards, field) {
+    const existing = document.querySelector('.vaultzero-card-menu');
+    if (existing) {
+      existing.remove();
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'vaultzero-menu vaultzero-card-menu';
+
+    cards.forEach((card) => {
+      const item = document.createElement('div');
+      item.className = 'vaultzero-menu-item';
+
+      // Mask card number
+      const lastFour = card.cardNumber.slice(-4);
+      const masked = `•••• •••• •••• ${lastFour}`;
+
+      const content = document.createElement('div');
+      content.innerHTML = `
+        <div class="vaultzero-menu-item-name">${escapeHtml(card.cardName)}</div>
+        <div class="vaultzero-menu-item-username">${escapeHtml(masked)} • ${escapeHtml(card.expiryMonth)}/${escapeHtml(card.expiryYear.slice(-2))}</div>
+      `;
+      item.appendChild(content);
+
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fillCreditCard(card);
+        menu.remove();
+      });
+
+      menu.appendChild(item);
+    });
+
+    const rect = field.getBoundingClientRect();
+    menu.style.position = 'absolute';
+    menu.style.top = `${rect.bottom + window.scrollY + 2}px`;
+    menu.style.left = `${rect.left + window.scrollX}px`;
+    menu.style.minWidth = `${rect.width}px`;
+
+    document.body.appendChild(menu);
+
+    setTimeout(() => {
+      const closeMenu = (e) => {
+        if (!menu.contains(e.target) && e.target !== field) {
+          menu.remove();
+          document.removeEventListener('click', closeMenu);
+          document.removeEventListener('keydown', handleEscape);
+        }
+      };
+
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          menu.remove();
+          document.removeEventListener('click', closeMenu);
+          document.removeEventListener('keydown', handleEscape);
+        }
+      };
+
+      document.addEventListener('click', closeMenu);
+      document.addEventListener('keydown', handleEscape);
+    }, 100);
+  }
+
+  // Fill credit card into form
+  function fillCreditCard(card) {
+    if (detectedPaymentFields.cardNumber) {
+      detectedPaymentFields.cardNumber.value = card.cardNumber;
+      detectedPaymentFields.cardNumber.dispatchEvent(new Event('input', { bubbles: true }));
+      detectedPaymentFields.cardNumber.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (detectedPaymentFields.cardName) {
+      detectedPaymentFields.cardName.value = card.cardholderName;
+      detectedPaymentFields.cardName.dispatchEvent(new Event('input', { bubbles: true }));
+      detectedPaymentFields.cardName.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (detectedPaymentFields.expiryMonth) {
+      const isSelect = detectedPaymentFields.expiryMonth.tagName === 'SELECT';
+      const isCombinedField = !detectedPaymentFields.expiryYear ||
+        detectedPaymentFields.expiryMonth.placeholder?.includes('MM') &&
+        detectedPaymentFields.expiryMonth.placeholder?.includes('YY');
+
+      if (isSelect) {
+        // For select elements, try to find matching option
+        const options = Array.from(detectedPaymentFields.expiryMonth.options);
+        const matchingOption = options.find(opt => opt.value === card.expiryMonth || opt.value === card.expiryMonth.padStart(2, '0'));
+        if (matchingOption) {
+          detectedPaymentFields.expiryMonth.value = matchingOption.value;
+        }
+      } else if (isCombinedField) {
+        // Combined expiry field (MM/YY format)
+        const month = card.expiryMonth.padStart(2, '0');
+        const year = card.expiryYear.slice(-2);
+        detectedPaymentFields.expiryMonth.value = `${month}/${year}`;
+      } else {
+        detectedPaymentFields.expiryMonth.value = card.expiryMonth;
+      }
+      detectedPaymentFields.expiryMonth.dispatchEvent(new Event('input', { bubbles: true }));
+      detectedPaymentFields.expiryMonth.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (detectedPaymentFields.expiryYear) {
+      const isSelect = detectedPaymentFields.expiryYear.tagName === 'SELECT';
+      if (isSelect) {
+        const options = Array.from(detectedPaymentFields.expiryYear.options);
+        const matchingOption = options.find(opt =>
+          opt.value === card.expiryYear ||
+          opt.value === card.expiryYear.slice(-2)
+        );
+        if (matchingOption) {
+          detectedPaymentFields.expiryYear.value = matchingOption.value;
+        }
+      } else {
+        detectedPaymentFields.expiryYear.value = card.expiryYear;
+      }
+      detectedPaymentFields.expiryYear.dispatchEvent(new Event('input', { bubbles: true }));
+      detectedPaymentFields.expiryYear.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (detectedPaymentFields.cvv) {
+      detectedPaymentFields.cvv.value = card.cvv;
+      detectedPaymentFields.cvv.dispatchEvent(new Event('input', { bubbles: true }));
+      detectedPaymentFields.cvv.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    showNotification('Credit card auto-filled from VaultZero');
   }
 
   // Escape HTML

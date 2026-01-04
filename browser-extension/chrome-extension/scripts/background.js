@@ -103,6 +103,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).then(sendResponse);
     return true;
 
+  } else if (request.action === 'getCreditCards') {
+    sendToNative({
+      type: 'getCreditCards'
+    }).then(sendResponse);
+    return true;
+
   } else if (request.action === 'ping') {
     sendToNative({
       type: 'ping'

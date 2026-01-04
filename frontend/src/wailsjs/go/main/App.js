@@ -6,12 +6,24 @@ export function AddCredential(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['AddCredential'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function AddCreditCard(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['AddCreditCard'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+}
+
 export function ChangeMasterPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeMasterPassword'](arg1, arg2);
 }
 
 export function CheckVaultExists() {
   return window['go']['main']['App']['CheckVaultExists']();
+}
+
+export function CopyCardNumber(arg1) {
+  return window['go']['main']['App']['CopyCardNumber'](arg1);
+}
+
+export function CopyCVV(arg1) {
+  return window['go']['main']['App']['CopyCVV'](arg1);
 }
 
 export function CopyPassword(arg1) {
@@ -28,6 +40,10 @@ export function CreateVault(arg1) {
 
 export function DeleteCredential(arg1) {
   return window['go']['main']['App']['DeleteCredential'](arg1);
+}
+
+export function DeleteCreditCard(arg1) {
+  return window['go']['main']['App']['DeleteCreditCard'](arg1);
 }
 
 export function DeleteVault() {
@@ -54,6 +70,10 @@ export function GetAllCredentials() {
   return window['go']['main']['App']['GetAllCredentials']();
 }
 
+export function GetAllCreditCards() {
+  return window['go']['main']['App']['GetAllCreditCards']();
+}
+
 export function ImportEncryptedBackup() {
   return window['go']['main']['App']['ImportEncryptedBackup']();
 }
@@ -70,6 +90,10 @@ export function LockVault() {
   return window['go']['main']['App']['LockVault']();
 }
 
+export function ToggleCreditCardFavorite(arg1) {
+  return window['go']['main']['App']['ToggleCreditCardFavorite'](arg1);
+}
+
 export function ToggleFavorite(arg1) {
   return window['go']['main']['App']['ToggleFavorite'](arg1);
 }
@@ -80,4 +104,8 @@ export function UnlockVault(arg1) {
 
 export function UpdateCredential(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['UpdateCredential'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function UpdateCreditCard(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['main']['App']['UpdateCreditCard'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
